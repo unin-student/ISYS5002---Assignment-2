@@ -1,0 +1,184 @@
+----------------------------------
+Tool: ChatGPT
+Date: 2025-10-22
+----------------------------------
+
+ME: This is the code for my user interface, can you suggest how I can improve upon this so that a user can input questions instead of only menu options?
+def main_menu():
+    print("Welcome to WeatherWise!")
+    choices = ['Get Weather Forecast', 'Ask a Weather Question', 'View Visualisations', 'Exit']
+    response = pyip.inputMenu(choices, prompt='Please select an option:\n', numbered=True)
+    return response
+
+def get_location_input():
+    location = pyip.inputStr(prompt='Enter the city or location:\n')
+    return location
+
+def get_forecast_days_input():
+    days = pyip.inputInt(prompt='Enter the number of forecast days (1-5):\n', min=1, max=5)
+    return days
+
+def get_weather_question_input():
+    question = pyip.inputStr(prompt='Enter your weather question:\n')
+    return question
+
+
+
+CHATGPT: Great question. You don’t have to choose between a strict menu and natural-language questions—you can do both. The trick is to read one free-form line first, then decide whether it’s a menu selection or a typed question, and parse a few simple patterns from the question (e.g., “in Perth”, “for 3 days”). If parsing fails, just treat the whole thing as a general question.
+
+Here’s a compact drop-in you can adapt. It keeps your existing functions but adds a unified prompt, simple intent parsing, and graceful fallback to the menu.
+
+import re
+import pyinputplus as pyip
+
+MENU_CHOICES = ['Get Weather Forecast', 'Ask a Weather Question', 'View Visualisations', 'Exit']
+
+def main_prompt():
+    """
+    One-line UX: user can type a natural-language question or a menu number/keyword.
+    Examples users might type:
+      - "Will it rain in Perth tomorrow?"
+      - "forecast in Sydney for 3 days"
+      - "3"  (means 'View Visualisations' if that's option 3)
+      - "exit"
+    """
+    prompt = (
+        "What would you like to do?\n"
+        "• Type a question (e.g., 'Will it rain in Perth tomorrow?')\n"
+        "• Or choose a command: 1) Get Weather Forecast  2) Ask a Weather Question  "
+        "3) View Visualisations  4) Exit\n> "
+    )
+    return input(prompt).strip()
+
+def parse_free_form(text):
+    """
+    Very simple, beginner-friendly parser to infer intent, location, and days.
+    Returns a dict like {'intent': 'forecast'|'ask'|'visualise'|'exit',
+                         'location': str|None, 'days': int|None, 'question': str|None}
+    """
+    t = text.lower().strip()
+    result = {'intent': None, 'location': None, 'days': None, 'question': None}
+
+    # Exit aliases
+    if t in {'4', 'q', 'quit', 'exit'}:
+        result['intent'] = 'exit'
+        return result
+
+    # Visualisations aliases
+    if t in {'3', 'visualise', 'visualize', 'visualisations', 'visualizations'}:
+        result['intent'] = 'visualise'
+        return result
+
+    # Menu numbers
+    if t in {'1', '2'}:
+        result['intent'] = 'forecast' if t == '1' else 'ask'
+        return result
+
+    # Try to detect a "forecast" request from words
+    # e.g., "forecast", "5 day forecast", "weather in perth for 3 days"
+    is_forecastish = any(w in t for w in ['forecast', 'weather', 'temp', 'temperature'])
+    # Extract "X day(s)"
+    m_days = re.search(r'(\d+)\s*(?:day|days)', t)
+    if m_days:
+        try:
+            result['days'] = max(1, min(5, int(m_days.group(1))))  # clamp to 1..5
+        except ValueError:
+            result['days'] = None
+
+    # Extract location after "in <place>"
+    # Simple heuristic: take words after "in " until punctuation or end
+    m_loc = re.search(r'\bin\s+([a-zA-Z\-\.\s]+?)(?:\?|\.|,| for\b| tomorrow\b| today\b|$)', t)
+    if m_loc:
+        result['location'] = m_loc.group(1).strip().rstrip('.').title()
+
+    # If it looks like a forecast request, call it forecast
+    if is_forecastish and (result['location'] or result['days']):
+        result['intent'] = 'forecast'
+        return result
+
+    # If user mentions "visualisation(s)" in a sentence
+    if 'visualisation' in t or 'visualization' in t:
+        result['intent'] = 'visualise'
+        return result
+
+    # Otherwise treat it as a general question to the QA system
+    result['intent'] = 'ask'
+    result['question'] = text
+    return result
+
+def main_menu():  # keep for explicit menu fallback
+    print("Welcome to WeatherWise!")
+    response = pyip.inputMenu(MENU_CHOICES, prompt='Please select an option:\n', numbered=True)
+    return response
+
+def get_location_input():
+    return pyip.inputStr(prompt='Enter the city or location:\n')
+
+def get_forecast_days_input():
+    return pyip.inputInt(prompt='Enter the number of forecast days (1-5):\n', min=1, max=5)
+
+def get_weather_question_input():
+    return pyip.inputStr(prompt='Enter your weather question:\n')
+
+def get_next_action():
+    """
+    Unifies free-form input and menu. Returns a dict with intent + any extracted params.
+    """
+    user_text = main_prompt()
+    parsed = parse_free_form(user_text)
+
+    # If the user chose 'forecast' or 'ask' but didn’t supply details, prompt for them
+    if parsed['intent'] == 'forecast':
+        if not parsed['location']:
+            parsed['location'] = get_location_input()
+        if not parsed['days']:
+            parsed['days'] = get_forecast_days_input()
+    elif parsed['intent'] == 'ask':
+        if not parsed.get('question'):
+            parsed['question'] = get_weather_question_input()
+
+    return parsed
+
+# Example event loop (stub handlers shown)
+def run_app():
+    print("Welcome to WeatherWise!")
+    while True:
+        action = get_next_action()
+        intent = action['intent']
+
+        if intent == 'exit':
+            print("Goodbye!")
+            break
+
+        elif intent == 'visualise':
+            print("Opening visualisations...")
+            # call your visualisation workflow here
+
+        elif intent == 'forecast':
+            loc, days = action['location'], action['days']
+            print(f"Fetching {days}-day forecast for {loc}...")
+            # call your forecast workflow here
+
+        elif intent == 'ask':
+            q = action['question']
+            print(f"Answering your question: {q}")
+            # call your QA workflow here
+
+        else:
+            # Fallback to the classic menu if parsing produced nothing
+            choice = main_menu()
+            if choice == 'Get Weather Forecast':
+                loc = get_location_input()
+                days = get_forecast_days_input()
+                print(f"Fetching {days}-day forecast for {loc}...")
+            elif choice == 'Ask a Weather Question':
+                q = get_weather_question_input()
+                print(f"Answering your question: {q}")
+            elif choice == 'View Visualisations':
+                print("Opening visualisations...")
+            else:
+                print("Goodbye!")
+                break
+
+if __name__ == "__main__":
+    run_app()

@@ -1,0 +1,204 @@
+----------------------------------
+Tool: ChatGPT
+Date: 2025-10-24
+----------------------------------
+
+
+ME: My current function for precipitation shows the information in a pie chart, is it possible to enchance this so that any days with 0 precipitation shows as "NO RAIN"
+
+def create_precipitation_visualisation(weather_data, output_type='display'):
+    if not weather_data or 'forecast' not in weather_data:
+        print("No weather data available for precipitation visualization.")
+        return None
+
+    forecast_list = weather_data['forecast']['list']
+    dates = [item['dt_txt'] for item in forecast_list]
+    # Check if 'rain' or 'snow' data exists and get the 3h value, default to 0 if not
+    precipitation = [item.get('rain', {}).get('3h', 0) + item.get('snow', {}).get('3h', 0) for item in forecast_list]
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+    ax.bar(dates, precipitation)
+    ax.set_title('Precipitation Forecast (mm in last 3 hours)')
+    ax.set_xlabel('Date and Time')
+    ax.set_ylabel('Precipitation (mm)')
+    ax.tick_params(axis='x', rotation=45)
+    plt.grid(axis='y')
+    plt.tight_layout()
+
+    if output_type == 'figure':
+        return fig
+    else:
+        plt.show()
+
+
+CHATGPT: Nice — that’s a good, clean precipitation visualization 👍
+
+Since your goal is to show "NO RAIN" for days with zero precipitation, there are a couple of ways to enhance your function depending on how you want to present the data visually:
+
+You can add text annotations (“NO RAIN”) above the bars where precipitation is zero — this keeps the same layout but adds clarity.
+
+Here’s an enhanced version of your current code:
+
+import matplotlib.pyplot as plt
+
+def create_precipitation_visualisation(weather_data, output_type='display'):
+    """
+    Creates a precipitation visualization from weather forecast data.
+    Shows "NO RAIN" above days with zero precipitation.
+    """
+    if not weather_data or 'forecast' not in weather_data:
+        print("No weather data available for precipitation visualization.")
+        return None
+
+    forecast_list = weather_data['forecast']['list']
+    dates = [item['dt_txt'] for item in forecast_list]
+
+    # Combine rain + snow per forecast entry (3-hour intervals)
+    precipitation = [
+        item.get('rain', {}).get('3h', 0) + item.get('snow', {}).get('3h', 0)
+        for item in forecast_list
+    ]
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+    bars = ax.bar(dates, precipitation, color=['skyblue' if p > 0 else 'lightgray' for p in precipitation])
+
+    # Add "NO RAIN" labels for zero precipitation bars
+    for i, (bar, value) in enumerate(zip(bars, precipitation)):
+        if value == 0:
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height() + 0.05,
+                "NO RAIN",
+                ha='center', va='bottom',
+                fontsize=8, color='gray', fontweight='bold'
+            )
+
+    ax.set_title('Precipitation Forecast (mm in last 3 hours)')
+    ax.set_xlabel('Date and Time')
+    ax.set_ylabel('Precipitation (mm)')
+    ax.tick_params(axis='x', rotation=45)
+    plt.grid(axis='y', linestyle='--', alpha=0.6)
+    plt.tight_layout()
+
+    if output_type == 'figure':
+        return fig
+    else:
+        plt.show()
+💡 Improvements in this version:
+Bars with no precipitation are shown in light gray.
+
+A “NO RAIN” label is placed above those bars.
+
+Bars with rain/snow remain sky blue.
+
+Improved grid and readability.
+
+✅ Option 2: Pie chart that includes “NO RAIN” as a category
+If you actually want the pie chart visualization (as you mentioned), here’s how to do that instead:
+
+python
+Copy code
+import matplotlib.pyplot as plt
+from collections import defaultdict
+
+def create_precipitation_pie(weather_data, output_type='display'):
+    """
+    Creates a pie chart of total precipitation over forecast days.
+    Days with no precipitation are grouped as 'NO RAIN'.
+    """
+    if not weather_data or 'forecast' not in weather_data:
+        print("No weather data available for precipitation visualization.")
+        return None
+
+    forecast_list = weather_data['forecast']['list']
+
+    # Aggregate precipitation per day
+    daily_precip = defaultdict(float)
+    for item in forecast_list:
+        date = item['dt_txt'].split(' ')[0]
+        daily_precip[date] += item.get('rain', {}).get('3h', 0) + item.get('snow', {}).get('3h', 0)
+
+    # Replace zero-precipitation days with "NO RAIN"
+    labels, values = [], []
+    for date, value in daily_precip.items():
+        if value == 0:
+            labels.append(f"{date} (NO RAIN)")
+            values.append(1e-6)  # tiny value to display slice
+        else:
+            labels.append(date)
+            values.append(value)
+
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.pie(values, labels=labels, autopct='%1.1f%%', startangle=90)
+    ax.set_title('Daily Precipitation Distribution')
+
+    plt.tight_layout()
+
+    if output_type == 'figure':
+        return fig
+    else:
+        plt.show()
+
+
+ME: It is possible to change the NO RAIN to read vertically in the pie chart? 
+
+CHATGPT: Ah, great question — and good eye 👀
+
+If you’re referring to the bar chart version, then yes — you can absolutely make "NO RAIN" appear vertically above each bar.
+That’s done by using Matplotlib’s text rotation options.
+
+Here’s an updated version with vertical “NO RAIN” text labels:
+
+import matplotlib.pyplot as plt
+
+def create_precipitation_visualisation(weather_data, output_type='display'):
+    """
+    Creates a precipitation bar chart.
+    Shows 'NO RAIN' vertically above days with zero precipitation.
+    """
+    if not weather_data or 'forecast' not in weather_data:
+        print("No weather data available for precipitation visualization.")
+        return None
+
+    forecast_list = weather_data['forecast']['list']
+    dates = [item['dt_txt'] for item in forecast_list]
+
+    # Combine rain + snow per forecast entry (3-hour intervals)
+    precipitation = [
+        item.get('rain', {}).get('3h', 0) + item.get('snow', {}).get('3h', 0)
+        for item in forecast_list
+    ]
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+    bars = ax.bar(
+        dates,
+        precipitation,
+        color=['skyblue' if p > 0 else 'lightgray' for p in precipitation]
+    )
+
+    # Add vertical “NO RAIN” labels for zero-precipitation bars
+    for i, (bar, value) in enumerate(zip(bars, precipitation)):
+        if value == 0:
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height() + 0.05,
+                "NO\nRAIN",  # newline makes it stack vertically
+                ha='center',
+                va='bottom',
+                fontsize=8,
+                color='gray',
+                fontweight='bold',
+                rotation=90  # ensures vertical orientation
+            )
+
+    ax.set_title('Precipitation Forecast (mm in last 3 hours)')
+    ax.set_xlabel('Date and Time')
+    ax.set_ylabel('Precipitation (mm)')
+    ax.tick_params(axis='x', rotation=45)
+    plt.grid(axis='y', linestyle='--', alpha=0.6)
+    plt.tight_layout()
+
+    if output_type == 'figure':
+        return fig
+    else:
+        plt.show()

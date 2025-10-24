@@ -1,0 +1,144 @@
+----------------------------------
+Tool: ChatGPT
+Date: 2025-10-24
+----------------------------------
+
+ME: Here is my weather data function, I need it to display weather in a list format for each day that is called upon
+
+
+def get_weather_data(location, forecast_days=5):
+    """
+    Returns dict with keys: 'current' (weather JSON) and 'forecast' (5-day/3h JSON).
+    """
+    api_key = os.getenv("OPENWEATHER_API_KEY")
+    if not api_key:
+        print("Missing OPENWEATHER_API_KEY.")
+        return None
+
+    forecast_days = max(1, min(5, int(forecast_days or 1)))  # clamp to 1..5
+    base = "http://api.openweathermap.org/data/2.5/"
+    try:
+        # Step 1: get lat/lon via current weather lookup
+        geocode_url = f"{base}weather?q={location}&appid={api_key}&units=metric"
+        r = requests.get(geocode_url, timeout=15)
+        r.raise_for_status()
+        geo = r.json()
+        cod = str(geo.get("cod", "200"))
+        if cod != "200":
+            print(f"Error: {geo.get('message','unknown error')}")
+            return None
+        lat = geo["coord"]["lat"]
+        lon = geo["coord"]["lon"]
+
+        # Step 2: get 5-day/3h forecast; we'll just keep the first N*8 slots (~8 slots ~ 1 day)
+        fc_url = f"{base}forecast?lat={lat}&lon={lon}&appid={api_key}&units=metric"
+        fr = requests.get(fc_url, timeout=15)
+        fr.raise_for_status()
+        forecast = fr.json()
+
+        # Trim list to requested days
+        slots = forecast_days * 8
+        if isinstance(forecast.get("list"), list):
+            forecast["list"] = forecast["list"][:slots]
+
+        return {"current": geo, "forecast": forecast}
+    except requests.HTTPError as e:
+        print(f"HTTP error: {e}")
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+    return None
+
+
+
+CHATGPT: Perfect — your weather data retrieval logic is already quite solid 👌
+You’re fetching data efficiently, handling API response validation, and trimming the forecast sensibly to match the requested number of days.
+
+Now, you want to display the weather data in a list format for each day — essentially summarizing the forecast per day in a clean, readable output.
+
+Let’s add that layer.
+
+import os
+import requests
+from datetime import datetime
+from collections import defaultdict
+
+def get_weather_data(location, forecast_days=5, display=True):
+    """
+    Fetch and optionally display weather forecast in a daily list format.
+
+    Args:
+        location (str): City or location name.
+        forecast_days (int): Number of days (1–5) to retrieve.
+        display (bool): If True, prints a formatted list summary.
+
+    Returns:
+        dict | None: Dictionary with 'current' and 'forecast' JSON data.
+    """
+    api_key = os.getenv("OPENWEATHER_API_KEY")
+    if not api_key:
+        print("Missing OPENWEATHER_API_KEY.")
+        return None
+
+    forecast_days = max(1, min(5, int(forecast_days or 1)))  # clamp to 1–5
+    base = "http://api.openweathermap.org/data/2.5/"
+    
+    try:
+        # Step 1: Get coordinates via current weather
+        geocode_url = f"{base}weather?q={location}&appid={api_key}&units=metric"
+        r = requests.get(geocode_url, timeout=15)
+        r.raise_for_status()
+        geo = r.json()
+        if str(geo.get("cod", "200")) != "200":
+            print(f"Error: {geo.get('message', 'unknown error')}")
+            return None
+        
+        lat, lon = geo["coord"]["lat"], geo["coord"]["lon"]
+
+        # Step 2: Fetch forecast data
+        fc_url = f"{base}forecast?lat={lat}&lon={lon}&appid={api_key}&units=metric"
+        fr = requests.get(fc_url, timeout=15)
+        fr.raise_for_status()
+        forecast = fr.json()
+
+        # Limit forecast to selected number of days (8 * day = 3-hour slots)
+        slots = forecast_days * 8
+        forecast["list"] = forecast.get("list", [])[:slots]
+
+        # Step 3: Group forecast by day
+        daily_data = defaultdict(list)
+        for entry in forecast["list"]:
+            date_str = entry["dt_txt"].split(" ")[0]
+            daily_data[date_str].append(entry)
+
+        # Step 4: Create summarized daily list
+        summary = []
+        for date, entries in daily_data.items():
+            temps = [e["main"]["temp"] for e in entries]
+            conditions = [e["weather"][0]["description"] for e in entries]
+            avg_temp = sum(temps) / len(temps)
+            main_condition = max(set(conditions), key=conditions.count)  # most common condition
+            summary.append({
+                "date": date,
+                "avg_temp": round(avg_temp, 1),
+                "condition": main_condition.title()
+            })
+
+        # Step 5: Display summary
+        if display:
+            print(f"\n📍 Weather Forecast for {geo['name']} ({forecast_days}-day outlook):")
+            print("-" * 50)
+            for day in summary:
+                date_obj = datetime.strptime(day["date"], "%Y-%m-%d")
+                date_label = date_obj.strftime("%a, %d %b %Y")
+                print(f"📅 {date_label}")
+                print(f"   🌡️  Avg Temp: {day['avg_temp']}°C")
+                print(f"   ☁️  Condition: {day['condition']}")
+                print("-" * 50)
+
+        return {"current": geo, "forecast": forecast, "summary": summary}
+
+    except requests.HTTPError as e:
+        print(f"HTTP error: {e}")
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+    return None

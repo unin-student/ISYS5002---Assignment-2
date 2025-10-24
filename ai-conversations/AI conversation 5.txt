@@ -1,0 +1,95 @@
+----------------------------------
+Tool: ChatGPT
+Date: 2025-10-24
+----------------------------------
+
+
+ME" This is the current code to my UI, what improvements can you suggest
+
+def parse_weather_question(question):
+    try:
+        # Assuming get_response can take a system message and user message
+        response = get_response(prompt)
+        # Attempt to parse the response as JSON
+        import json
+        parsed_data = json.loads(response)
+        return parsed_data
+    except Exception as e:
+        print(f"Error parsing weather question: {e}")
+        return None
+
+
+Nice — you’re clearly setting up a chat-based UI layer that calls some model (via get_response) and parses a weather-related question into structured JSON data.
+
+However, this function is quite minimal right now, and there are several ways to make it safer, clearer, and more flexible — both technically and from a UX perspective.
+
+Let’s walk through the main improvements 👇
+
+🧠 Current issues / limitations
+
+prompt isn’t defined — so this function as written will raise a NameError.
+You probably meant to use question instead or construct a full prompt message.
+
+get_response return type is unclear — if it’s from a model like GPT, the response might contain text that isn’t valid JSON (e.g., extra formatting, code fences, or explanations).
+
+Error handling is too generic — you’re catching all exceptions, but you could separate JSON parsing errors vs. model errors.
+
+No validation on parsed JSON — you assume the response structure is valid.
+
+No logging or visibility — print() is okay for debugging but not ideal for production.
+
+Docstring / typing missing — helps readability and avoids silent errors.
+
+Improved version
+
+Here’s a safer, more maintainable version with good practices built in:
+
+import json
+import logging
+
+def parse_weather_question(question: str) -> dict | None:
+    """
+    Sends a natural language weather question to a model and parses
+    the structured response (expected in JSON format).
+
+    Args:
+        question (str): The user's weather-related question.
+
+    Returns:
+        dict | None: Parsed JSON data from the model's response, or None if parsing fails.
+    """
+    try:
+        # Build a well-structured system + user prompt
+        system_message = (
+            "You are a weather assistant. "
+            "Given a user question, return a structured JSON object with keys like "
+            "'location', 'date', and 'information_type' (e.g., temperature, forecast, humidity). "
+            "Return only valid JSON with no extra text."
+        )
+
+        # Combine into a single input if your get_response function accepts plain text
+        prompt = f"{system_message}\n\nUser question: {question}"
+
+        response = get_response(prompt)  # Assuming this returns a string
+
+        # Optional: strip out code fences if the model includes them
+        response = response.strip().removeprefix("```json").removesuffix("```").strip()
+
+        try:
+            parsed_data = json.loads(response)
+        except json.JSONDecodeError:
+            logging.warning(f"Model response not valid JSON: {response[:200]}...")
+            return None
+
+        # Validate structure
+        expected_keys = {"location", "date", "information_type"}
+        if not any(key in parsed_data for key in expected_keys):
+            logging.warning("Parsed data missing expected keys.")
+            return None
+
+        return parsed_data
+
+    except Exception as e:
+        logging.error(f"Error parsing weather question: {e}", exc_info=True)
+        return None
+

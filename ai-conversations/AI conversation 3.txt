@@ -1,0 +1,102 @@
+----------------------------------
+Tool: ChatGPT
+Date: 2025-10-24
+----------------------------------
+
+
+ME: This is my current function to create visuals based on weather data, is there a way to augment the code to change colouring based on weather? If temperate is greater than 25 it can be red and if its below 15 it should be blue. Anything in between these two ranges can be green
+
+def create_temperature_visualisation(weather_data, output_type='display'):
+    if not weather_data or 'forecast' not in weather_data:
+        print("No weather data available for temperature visualization.")
+        return None
+
+    forecast_list = weather_data['forecast']['list']
+    dates = [item['dt_txt'] for item in forecast_list]
+    temperatures = [item['main']['temp'] for item in forecast_list]
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+    ax.plot(dates, temperatures, marker='o', linestyle='-')
+    ax.set_title('Temperature Forecast')
+    ax.set_xlabel('Date and Time')
+    ax.set_ylabel('Temperature (°C)')
+    ax.tick_params(axis='x', rotation=45)
+    plt.grid(True)
+    plt.tight_layout()
+
+    if output_type == 'figure':
+        return fig
+    else:
+        plt.show()
+
+CHATGPT: Nice — that’s a clear, straightforward visualization function 👏
+
+You can definitely augment it to change the color of plotted points (and/or lines) dynamically based on temperature.
+
+Here’s how to do it cleanly, while keeping your function flexible and visually clear.
+Improved Version — Dynamic Color by Temperature
+import matplotlib.pyplot as plt
+
+def create_temperature_visualisation(weather_data, output_type='display'):
+    """
+    Create a temperature visualization from weather forecast data.
+
+    Color code:
+    - Red: temperature > 25°C
+    - Blue: temperature < 15°C
+    - Green: 15°C ≤ temperature ≤ 25°C
+    """
+    if not weather_data or 'forecast' not in weather_data:
+        print("No weather data available for temperature visualization.")
+        return None
+
+    forecast_list = weather_data['forecast']['list']
+    dates = [item['dt_txt'] for item in forecast_list]
+    temperatures = [item['main']['temp'] for item in forecast_list]
+
+    # Assign colors based on temperature thresholds
+    colors = [
+        'red' if temp > 25 else
+        'blue' if temp < 15 else
+        'green'
+        for temp in temperatures
+    ]
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    # Draw colored segments between points for better continuity
+    for i in range(1, len(dates)):
+        ax.plot(
+            dates[i-1:i+1],
+            temperatures[i-1:i+1],
+            color=colors[i],
+            linewidth=2
+        )
+
+    # Plot points on top for clarity
+    ax.scatter(dates, temperatures, c=colors, s=50, edgecolor='black')
+
+    ax.set_title('Temperature Forecast')
+    ax.set_xlabel('Date and Time')
+    ax.set_ylabel('Temperature (°C)')
+    ax.tick_params(axis='x', rotation=45)
+    plt.grid(True)
+    plt.tight_layout()
+
+    if output_type == 'figure':
+        return fig
+    else:
+        plt.show()
+
+🎨 Explanation
+
+The colors list maps each temperature to a color:
+
+'red' if temp > 25 else 'blue' if temp < 15 else 'green'
+
+
+The line plot uses short colored segments to reflect temperature changes smoothly.
+
+ax.scatter() overlays colored points for better clarity.
+
+The function still works with your output_type logic.
